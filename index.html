@@ -463,6 +463,7 @@
 
         function checkUpcomingClasses(now) {
             const currentDayName = DAYS[now.getDay()];
+            const todayDateStr = now.toDateString(); // Ensures clean daily reset
             const todaySchedules = schedules.filter(s => s.day === currentDayName);
 
             let nextClass = null;
@@ -477,10 +478,10 @@
 
                 // Check lead trigger timing (e.g. 5 minutes before class)
                 const leadMs = (item.leadTime || 5) * 60 * 1000;
-                const triggerKey = `${item.id}_${currentDayName}_${item.time}`;
+                const triggerKey = `${item.id}_${todayDateStr}_${item.time}`;
 
-                // Trigger window within 30 seconds of reaching lead time
-                if (diffMs > 0 && diffMs <= leadMs && (leadMs - diffMs) < 30000) {
+                // FIXED: Triggers anytime within the lead window without restricting to a 30s slice
+                if (diffMs > 0 && diffMs <= leadMs) {
                     if (lastTriggeredKey !== triggerKey) {
                         lastTriggeredKey = triggerKey;
                         executeIntimation(item);
