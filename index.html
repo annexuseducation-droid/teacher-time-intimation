@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS for Excel & CSV Parsing -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -134,27 +136,36 @@
             </div>
         </div>
 
-        <!-- Testing & Notification Setup Bar -->
-        <div class="glass rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <!-- Testing, Notification Setup & Excel Import/Export Bar -->
+        <div class="glass rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col lg:flex-row items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     <i data-lucide="bell-ring" class="w-5 h-5"></i>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Push Notifications & Voice Intimation</h3>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Push, Voice & Excel Spreadsheet Hub</h3>
                     <p id="notifStatusText" class="text-xs text-slate-500 dark:text-slate-400">Status: Checking permission...</p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-2 w-full sm:w-auto">
-                <button onclick="requestNotificationPermission()" class="flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition flex items-center justify-center gap-1.5">
+            <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                <button onclick="requestNotificationPermission()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition flex items-center justify-center gap-1.5">
                     <i data-lucide="shield-check" class="w-4 h-4"></i>
                     Enable Push
                 </button>
-                <button onclick="testVoiceAndNotification()" class="flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md transition flex items-center justify-center gap-1.5">
+                <button onclick="testVoiceAndNotification()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md transition flex items-center justify-center gap-1.5">
                     <i data-lucide="play-circle" class="w-4 h-4"></i>
                     Test Voice & Push
                 </button>
+                <button onclick="exportSchedulesExcel()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition flex items-center justify-center gap-1.5" title="Export to Excel">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    Export Excel
+                </button>
+                <label class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition flex items-center justify-center gap-1.5 cursor-pointer" title="Import from Excel or CSV">
+                    <i data-lucide="upload" class="w-4 h-4"></i>
+                    Import Excel / CSV
+                    <input type="file" id="importFile" accept=".xlsx, .xls, .csv" onchange="importSchedulesExcel(event)" class="hidden">
+                </label>
             </div>
         </div>
 
@@ -228,7 +239,10 @@
                         <input type="text" id="formRoom" required placeholder="e.g. Room 101" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Class Time</label>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 flex items-center justify-between">
+                            <span>Class Time (24-hr)</span>
+                            <span class="text-[10px] text-amber-500 font-normal">e.g. 14:30 = 2:30 PM</span>
+                        </label>
                         <input type="time" id="formTime" required class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
                 </div>
@@ -273,11 +287,11 @@
         let voiceEnabled = true;
         let lastTriggeredKey = '';
 
-        // Sample initial data if none exists
+        // Sample initial data with correct 24-hr format
         const defaultSchedules = [
             { id: '1', day: 'Monday', section: 'ICS girls', subject: 'Computer Science', room: 'Room 101', time: '09:00', leadTime: 5 },
-            { id: '2', day: 'Monday', section: 'FSc Boys', subject: 'Physics Lab', room: 'Lab 3', time: '11:15', leadTime: 5 },
-            { id: '3', day: 'Tuesday', section: 'ICS girls', subject: 'Web Development', room: 'Room 102', time: '10:00', leadTime: 5 }
+            { id: '2', day: 'Monday', section: 'FSc Boys', subject: 'Physics Lab', room: 'Lab 3', time: '14:15', leadTime: 5 },
+            { id: '3', day: 'Tuesday', section: 'ICS girls', subject: 'Web Development', room: 'Room 102', time: '15:00', leadTime: 5 }
         ];
 
         let schedules = JSON.parse(localStorage.getItem('annexus_schedules')) || defaultSchedules;
@@ -290,14 +304,96 @@
             initServiceWorkerAndManifest();
             checkNotificationStatus();
             
-            // Start clock loop
+            triggerMorningBriefing();
+
             setInterval(updateClock, 1000);
             updateClock();
         });
 
+        // --- Morning Briefing Engine ---
+        function triggerMorningBriefing() {
+            const now = new Date();
+            const todayName = DAYS[now.getDay()];
+            const todayDateKey = `morning_briefing_${now.toDateString()}`;
+
+            if (localStorage.getItem(todayDateKey)) return;
+
+            const todaysClasses = schedules.filter(s => s.day === todayName);
+            const classCount = todaysClasses.length;
+
+            let briefingText = "";
+            if (classCount > 0) {
+                briefingText = `Good morning! Today you have ${classCount} classes scheduled. Have a great teaching day with Annexus Education.`;
+            } else {
+                briefingText = `Good morning! You have no classes scheduled for today. Enjoy your day!`;
+            }
+
+            setTimeout(() => {
+                speakText(briefingText);
+                localStorage.setItem(todayDateKey, 'true');
+            }, 1000);
+        }
+
+        // --- Excel & CSV Export & Import via SheetJS ---
+        function exportSchedulesExcel() {
+            const worksheetData = schedules.map(s => ({
+                Day: s.day,
+                Section: s.section,
+                Subject: s.subject,
+                Room: s.room,
+                Time: s.time,
+                LeadTime: s.leadTime || 5
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Timetable");
+            XLSX.writeFile(workbook, `annexus_timetable_${new Date().toISOString().slice(0,10)}.xlsx`);
+            showToast("Excel spreadsheet exported successfully!");
+        }
+
+        function importSchedulesExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (jsonRows.length === 0) {
+                        alert("The uploaded file is empty.");
+                        return;
+                    }
+
+                    // Map rows to app schedule structure with validation
+                    schedules = jsonRows.map((row, index) => ({
+                        id: String(row.id || Date.now() + index),
+                        day: String(row.Day || row.day || 'Monday'),
+                        section: String(row.Section || row.section || 'General'),
+                        subject: String(row.Subject || row.subject || 'Class'),
+                        room: String(row.Room || row.room || 'Room 101'),
+                        time: String(row.Time || row.time || '09:00'),
+                        leadTime: parseInt(row.LeadTime || row.leadTime || 5, 10)
+                    }));
+
+                    saveSchedules();
+                    renderScheduleList();
+                    showToast("Timetable imported from spreadsheet successfully!");
+                } catch (err) {
+                    console.error(err);
+                    alert("Error reading Excel/CSV file. Please ensure columns match Day, Section, Subject, Room, Time.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
         // --- PWA Service Worker & Manifest Blob ---
         function initServiceWorkerAndManifest() {
-            // Dynamically attach manifest link
             const manifest = {
                 name: "ANNEXUS EDUCATION:03215344656 - Teacher Assistant",
                 short_name: "ANNEXUS Teacher",
@@ -323,7 +419,6 @@
             link.href = manifestUrl;
             document.head.appendChild(link);
 
-            // Mock Inline SW registration for standalone features
             if ('serviceWorker' in navigator) {
                 const swCode = `
                     self.addEventListener('install', e => self.skipWaiting());
@@ -426,7 +521,7 @@
         // --- Speech Synthesis ---
         function speakText(text) {
             if (!voiceEnabled || !('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel(); // Stop any ongoing speech
+            window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.rate = 0.95;
             utterance.pitch = 1.0;
@@ -439,13 +534,8 @@
             const testTitleNotif = "Upcoming Class Reminder - ANNEXUS EDUCATION:03215344656";
             const testBodyNotif = "Room 101: ICS girls - Computer Science";
 
-            // 1. Speak Voice Intimation
             speakText(testMsgVoice);
-
-            // 2. Trigger System Notification
             triggerSystemNotification(testTitleNotif, testBodyNotif);
-
-            // 3. UI Feedback
             showToast("Test Voice & System Push Triggered!");
         }
 
@@ -463,7 +553,7 @@
 
         function checkUpcomingClasses(now) {
             const currentDayName = DAYS[now.getDay()];
-            const todayDateStr = now.toDateString(); // Ensures clean daily reset
+            const todayDateStr = now.toDateString();
             const todaySchedules = schedules.filter(s => s.day === currentDayName);
 
             let nextClass = null;
@@ -476,11 +566,9 @@
 
                 const diffMs = classTime - now;
 
-                // Check lead trigger timing (e.g. 5 minutes before class)
                 const leadMs = (item.leadTime || 5) * 60 * 1000;
                 const triggerKey = `${item.id}_${todayDateStr}_${item.time}`;
 
-                // FIXED: Triggers anytime within the lead window without restricting to a 30s slice
                 if (diffMs > 0 && diffMs <= leadMs) {
                     if (lastTriggeredKey !== triggerKey) {
                         lastTriggeredKey = triggerKey;
@@ -494,7 +582,6 @@
                 }
             });
 
-            // Update UI Banner
             const titleEl = document.getElementById('nextClassTitle');
             const detailsEl = document.getElementById('nextClassDetails');
             const timerEl = document.getElementById('countdownTimer');
@@ -514,19 +601,13 @@
             }
         }
 
-        // Execute BOTH Voice and Push Notifications
         function executeIntimation(item) {
             const voiceSpeech = `Your next class is in ${item.room} for ${item.section} for ${item.subject}`;
             const notifTitle = `Upcoming Class Reminder - ANNEXUS EDUCATION:03215344656`;
             const notifBody = `${item.room}: ${item.section} - ${item.subject}`;
 
-            // 1. Speak Voice
             speakText(voiceSpeech);
-
-            // 2. System Push Notification
             triggerSystemNotification(notifTitle, notifBody);
-
-            // 3. UI Notification Toast
             showToast(`Intimation Sent: ${item.subject} in ${item.room}`);
         }
 
@@ -568,7 +649,6 @@
                 return;
             }
 
-            // Sort by time
             filtered.sort((a, b) => a.time.localeCompare(b.time));
 
             container.innerHTML = filtered.map(item => `
@@ -652,13 +732,11 @@
             const leadTime = parseInt(document.getElementById('formLeadTime').value, 10);
 
             if (id) {
-                // Edit existing
                 const index = schedules.findIndex(s => s.id === id);
                 if (index !== -1) {
                     schedules[index] = { id, day, section, subject, room, time, leadTime };
                 }
             } else {
-                // Add new
                 const newItem = {
                     id: Date.now().toString(),
                     day,
